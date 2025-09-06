@@ -4,9 +4,9 @@
 A modern, intuitive React application for splitting expenses among any group of people with flexible splitting options. Perfect for trips, roommates, group dinners, or any shared expenses. Built with React, Vite, TailwindCSS, and beautiful Lucide React icons.
 
 ## 🌐 Live Demo
-**[Try it live here!](https://YOUR-USERNAME.github.io/smart-expense-splitter/)**
+**[Try it live here!](https://aliammarnaseem.github.io/smart-expense-splitter/)**
 
-[![Smart Expense Splitter](https://via.placeholder.com/800x400/3B82F6/FFFFFF?text=Smart+Expense+Splitter+Live+Demo)](https://YOUR-USERNAME.github.io/smart-expense-splitter/)
+[![Smart Expense Splitter](https://via.placeholder.com/800x400/3B82F6/FFFFFF?text=Smart+Expense+Splitter+Live+Demo)](https://aliammarnaseem.github.io/smart-expense-splitter/)
 
 > **Portfolio Note**: This is a fully functional web application built as a portfolio project demonstrating modern React development, responsive design, and real-world problem solving.
 
@@ -232,7 +232,7 @@ This project is open source and available under the [MIT License](LICENSE).
 This project is automatically deployed to GitHub Pages using GitHub Actions.
 
 ### Live on GitHub Pages
-- **Live URL**: [https://YOUR-USERNAME.github.io/smart-expense-splitter/](https://YOUR-USERNAME.github.io/smart-expense-splitter/)
+- **Live URL**: [https://aliammarnaseem.github.io/smart-expense-splitter/](https://aliammarnaseem.github.io/smart-expense-splitter/)
 - **Automatic Deployment**: Every push to main branch triggers a new deployment
 - **Custom Domain**: Can be configured in repository settings
 
