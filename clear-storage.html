@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Storage - Smart Expense Splitter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f9fafb;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        button {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #dc2626;
+        }
+        .success {
+            color: #059669;
+            margin-top: 20px;
+            padding: 10px;
+            background: #ecfdf5;
+            border-radius: 6px;
+        }
+        .info {
+            color: #0369a1;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #eff6ff;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Storage Tool</h1>
+        <div class="info">
+            <p><strong>Purpose:</strong> This tool helps you clear saved data from your browser's localStorage for the Smart Expense Splitter app.</p>
+            <p><strong>Use this when:</strong> You want to test the app as a new user or clear old default participants.</p>
+        </div>
+        
+        <button onclick="clearStorage()">Clear All Saved Data</button>
+        <button onclick="checkStorage()">Check Current Data</button>
+        
+        <div id="result"></div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #f3f4f6; border-radius: 6px;">
+            <h3>How Auto-Save Works:</h3>
+            <ul style="text-align: left; display: inline-block;">
+                <li>✅ Data saves automatically when you add participants or expenses</li>
+                <li>✅ Restores your work when you return to the app</li>
+                <li>✅ Clears automatically when all data is removed</li>
+                <li>✅ Works completely offline - no data sent to servers</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function clearStorage() {
+            localStorage.removeItem('tripExpensesData');
+            document.getElementById('result').innerHTML = 
+                '<div class="success">✅ All saved data cleared! You can now test the app as a new user.</div>';
+        }
+        
+        function checkStorage() {
+            const data = localStorage.getItem('tripExpensesData');
+            const resultDiv = document.getElementById('result');
+            
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    resultDiv.innerHTML = `
+                        <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 6px; text-align: left;">
+                            <strong>📊 Current Saved Data:</strong><br>
+                            • Participants: ${parsed.participants?.length || 0}<br>
+                            • Expenses: ${parsed.expenses?.length || 0}<br>
+                            • Trip Name: ${parsed.tripName || 'None'}<br>
+                            • Last Saved: ${parsed.lastSaved ? new Date(parsed.lastSaved).toLocaleString() : 'Unknown'}
+                        </div>
+                    `;
+                } catch (e) {
+                    resultDiv.innerHTML = '<div style="color: #dc2626; margin-top: 20px;">❌ Found corrupted data in storage.</div>';
+                }
+            } else {
+                resultDiv.innerHTML = '<div class="success">✅ No saved data found. App will start fresh.</div>';
+            }
+        }
+        
+        // Check on page load
+        checkStorage();
+    </script>
+</body>
+</html>
