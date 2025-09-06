@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🧾 Smart Expense Splitter
 
 A modern, intuitive React application for splitting expenses among any group of people with flexible splitting options. Perfect for trips, roommates, group dinners, or any shared expenses. Built with React, Vite, TailwindCSS, and beautiful Lucide React icons.
@@ -273,3 +274,7 @@ This project is automatically deployed to GitHub Pages using GitHub Actions.
 ---
 
 **Made with ❤️ for making fair expense splitting simple and beautiful!** 
+=======
+# smart-expense-splitter
+Modern expense splitting web app with flexible splitting options, PDF report generation, and optimized settlement calculations. Perfect for trips, group dinners, and shared expenses. React + TailwindCSS + Vite.
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b

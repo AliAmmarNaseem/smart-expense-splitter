@@ -4,9 +4,17 @@ logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+<<<<<<< HEAD
 pnpm-debug.log*
 lerna-debug.log*
 
+=======
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 # Runtime data
 pids
 *.pid
@@ -54,12 +62,15 @@ web_modules/
 # Optional stylelint cache
 .stylelintcache
 
+<<<<<<< HEAD
 # Microbundle cache
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
 
+=======
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 # Optional REPL history
 .node_repl_history
 
@@ -71,10 +82,15 @@ web_modules/
 
 # dotenv environment variable files
 .env
+<<<<<<< HEAD
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
+=======
+.env.*
+!.env.example
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -94,6 +110,7 @@ dist
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
 
+<<<<<<< HEAD
 # Vite build output
 dist/
 dist-ssr/
@@ -110,6 +127,8 @@ dist/
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
 
+=======
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 # vuepress build output
 .vuepress/dist
 
@@ -117,6 +136,18 @@ dist/
 .temp
 .cache
 
+<<<<<<< HEAD
+=======
+# Sveltekit cache directory
+.svelte-kit/
+
+# vitepress build output
+**/.vitepress/dist
+
+# vitepress cache directory
+**/.vitepress/cache
+
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 # Docusaurus cache and generated files
 .docusaurus
 
@@ -129,12 +160,19 @@ dist/
 # DynamoDB Local files
 .dynamodb/
 
+<<<<<<< HEAD
+=======
+# Firebase cache directory
+.firebase/
+
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
 # TernJS port file
 .tern-port
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+<<<<<<< HEAD
 # yarn v2
 .yarn/cache
 .yarn/unplugged
@@ -175,3 +213,17 @@ Thumbs.db
 # Temporary folders
 tmp/
 temp/
+=======
+# yarn v3
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Vite logs files
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+>>>>>>> ce4361d3adde3f2b67b3c725ae25ef174cf4938b
