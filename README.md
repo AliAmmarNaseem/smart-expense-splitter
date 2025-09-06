@@ -22,18 +22,6 @@ A modern React application for splitting expenses among groups with flexible spl
 - **jsPDF** - PDF report generation
 - **GitHub Pages** - Automatic deployment
 
-## 🚀 Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
 
 ## 📱 How It Works
 
@@ -54,5 +42,3 @@ npm run build
 This project is open source and available under the MIT License.
 
 ---
-
-**Made with ❤️ by Ali Ammar Naseem**
