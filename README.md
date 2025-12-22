@@ -1,4 +1,4 @@
-# 🧾 Smart Expense Splitter
+# Smart Expense Splitter
 
 A modern React application for splitting expenses among groups with flexible splitting options and PDF report generation.
 
@@ -37,7 +37,7 @@ A modern React application for splitting expenses among groups with flexible spl
 - Restaurant bills with friends
 - Any shared group expenses
 
-## 📄 License
+## License
 
 This project is open source and available under the MIT License.
 
