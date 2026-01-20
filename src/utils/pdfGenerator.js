@@ -93,20 +93,39 @@ const generateExecutiveSummary = (doc, pageWidth, margin, startY, data, isUrdu, 
 
     yPos += cardHeight + 15;
 
-    // Add Settlement Sentences
+    // Add Settlement Sentences with High Impact Design
     if (summaryBullets && summaryBullets.length > 0) {
-        doc.setFontSize(11);
-        doc.setTextColor(55, 65, 81); // Gray-700
-        doc.setFont("helvetica", "normal");
+        // Calculate box height based on number of bullets
+        const lineHeight = 12;
+        const padding = 10;
+        const boxHeight = (summaryBullets.length * lineHeight) + (padding * 2);
+
+        // Draw Yellow "Note" Background
+        doc.setFillColor(255, 251, 235); // Amber-50 (Very light yellow)
+        doc.setDrawColor(245, 158, 11); // Amber-500 (Border)
+        doc.setLineWidth(0.5);
+        doc.roundedRect(margin - 5, yPos, pageWidth - (margin * 2) + 10, boxHeight, 3, 3, 'FD');
+
+        // Add "Important" Icon/Label
+        doc.setFontSize(10);
+        doc.setTextColor(180, 83, 9); // Amber-700
+        doc.setFont("helvetica", "bold");
+        doc.text(isUrdu ? "Zaroori Note:" : "PAYMENT SUMMARY:", margin, yPos + 8);
+
+        // Adjust Y position for text start
+        let textY = yPos + padding + 8;
+
+        doc.setFontSize(14); // Large font
+        doc.setTextColor(31, 41, 55); // Gray-900 (High contrast)
+        doc.setFont("helvetica", "bold"); // Bold text
 
         summaryBullets.forEach(bullet => {
-            // Clean up bullet text if it already has a bullet point
             const cleanBullet = bullet.replace(/^[•-]\s*/, '');
-            doc.text(`•  ${cleanBullet}`, margin + 5, yPos);
-            yPos += 7;
+            doc.text(`•  ${cleanBullet}`, margin + 5, textY);
+            textY += lineHeight;
         });
 
-        yPos += 5;
+        yPos += boxHeight + 10;
     }
 
     return yPos + 10;

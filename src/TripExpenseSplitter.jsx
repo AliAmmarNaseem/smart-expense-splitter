@@ -1252,30 +1252,47 @@ export default function TripExpenseSplitter() {
                 <Label className="text-sm font-semibold text-black mb-3 block">Participants</Label>
                 <div className="flex flex-wrap gap-4 justify-center">
                   {participants.map((participant, index) => (
-                    <label key={participant} className="flex flex-col items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={customSplits[participant]?.selected || false}
-                        onChange={() => setCustomSplits({
-                          ...customSplits,
-                          [participant]: {
-                            ...customSplits[participant],
-                            selected: !customSplits[participant]?.selected
-                          }
-                        })}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-2 transition-all ${customSplits[participant]?.selected ? 'ring-4 ring-blue-300' : ''
-                          }`}
-                        style={{
-                          backgroundColor: index === 0 ? '#8B5CF6' : index === 1 ? '#3B82F6' : '#10B981'
-                        }}
-                      >
-                        {participant.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium text-black text-sm text-center">{participant}</span>
-                    </label>
+                    <div key={participant} className="flex flex-col items-center">
+                      <label className="flex flex-col items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customSplits[participant]?.selected || false}
+                          onChange={() => setCustomSplits({
+                            ...customSplits,
+                            [participant]: {
+                              ...customSplits[participant],
+                              selected: !customSplits[participant]?.selected
+                            }
+                          })}
+                          className="sr-only"
+                        />
+                        <div
+                          className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-2 transition-all ${customSplits[participant]?.selected ? 'ring-4 ring-blue-300' : ''
+                            }`}
+                          style={{
+                            backgroundColor: index === 0 ? '#8B5CF6' : index === 1 ? '#3B82F6' : '#10B981'
+                          }}
+                        >
+                          {participant.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-black text-sm text-center">{participant}</span>
+                      </label>
+                      {splitMode === "custom" && customSplits[participant]?.selected && (
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={customSplits[participant]?.amount || ""}
+                          onChange={(e) => setCustomSplits({
+                            ...customSplits,
+                            [participant]: {
+                              ...customSplits[participant],
+                              amount: e.target.value
+                            }
+                          })}
+                          className="mt-2 w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-black placeholder-gray-400"
+                        />
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
