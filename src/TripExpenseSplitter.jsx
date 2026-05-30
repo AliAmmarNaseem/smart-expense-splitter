@@ -10,6 +10,12 @@ import html2canvas from 'html2canvas';
 import { generatePDF } from './utils/pdfGenerator';
 // QRCode removed per user request
 
+const PARTICIPANT_COLORS = [
+  '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
+  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+];
+const getColor = (index) => PARTICIPANT_COLORS[Math.abs(index) % PARTICIPANT_COLORS.length];
+
 export default function TripExpenseSplitter() {
   const [participants, setParticipants] = useState([]);
   const [newParticipantName, setNewParticipantName] = useState("");
@@ -29,8 +35,12 @@ export default function TripExpenseSplitter() {
   const [editDescription, setEditDescription] = useState("");
   const [editSplitMode, setEditSplitMode] = useState("equal");
   const [editCustomSplits, setEditCustomSplits] = useState({});
+  const [editPaymentMode, setEditPaymentMode] = useState("single");
+  const [editMultiplePayers, setEditMultiplePayers] = useState([{ person: "", amount: "" }]);
   const [pdfLanguage, setPdfLanguage] = useState("en"); // 'en' or 'ur'
   const [urduNameMap, setUrduNameMap] = useState({}); // { [englishName]: urduName }
+  const [paymentMode, setPaymentMode] = useState("single"); // "single" or "multiple"
+  const [multiplePayers, setMultiplePayers] = useState([{ person: "", amount: "" }]);
 
   // Rename participant states
   const [renamingParticipant, setRenamingParticipant] = useState(null);
@@ -66,6 +76,18 @@ export default function TripExpenseSplitter() {
       cancelText: 'Cancel',
       showCancel: false
     });
+  };
+
+  const addMultiplePayerRow = () => {
+    setMultiplePayers(prev => [...prev, { person: "", amount: "" }]);
+  };
+
+  const removeMultiplePayerRow = (index) => {
+    setMultiplePayers(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateMultiplePayerRow = (index, field, value) => {
+    setMultiplePayers(prev => prev.map((mp, i) => i === index ? { ...mp, [field]: value } : mp));
   };
 
   // Load data from localStorage on component mount
@@ -338,11 +360,21 @@ export default function TripExpenseSplitter() {
   };
 
   const addExpense = () => {
-    if (!payer || !amount || !description.trim()) {
+    if (!amount || !description.trim()) {
       showCustomModal({
         type: 'warning',
         title: 'Missing Information',
-        message: 'Please fill in all required fields (payer, amount, and description).',
+        message: 'Please fill in all required fields (amount, and description).',
+        confirmText: 'OK'
+      });
+      return;
+    }
+
+    if (paymentMode === "single" && !payer) {
+      showCustomModal({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please select who paid.',
         confirmText: 'OK'
       });
       return;
@@ -359,10 +391,48 @@ export default function TripExpenseSplitter() {
       return;
     }
 
+    // Multiple payers validation
+    let validatedPayers = null;
+    if (paymentMode === "multiple") {
+      const validPayers = multiplePayers.filter(mp => mp.person && parseFloat(mp.amount) > 0);
+      if (validPayers.length === 0) {
+        showCustomModal({
+          type: 'warning',
+          title: 'No Payers Added',
+          message: 'Please add at least one payer with a valid amount.',
+          confirmText: 'OK'
+        });
+        return;
+      }
+
+      const payerNames = validPayers.map(mp => mp.person);
+      if (new Set(payerNames).size !== payerNames.length) {
+        showCustomModal({
+          type: 'warning',
+          title: 'Duplicate Payer',
+          message: 'Each person can only appear once in the payers list.',
+          confirmText: 'OK'
+        });
+        return;
+      }
+
+      const totalPaid = validPayers.reduce((sum, mp) => sum + parseFloat(mp.amount), 0);
+      if (Math.abs(totalPaid - expenseAmount) > 0.01) {
+        showCustomModal({
+          type: 'error',
+          title: 'Payment Amount Mismatch',
+          message: `Total paid by all payers (${formatCurrency(totalPaid)}) must equal the expense amount (${formatCurrency(expenseAmount)}).`,
+          confirmText: 'OK'
+        });
+        return;
+      }
+
+      validatedPayers = validPayers.map(mp => ({ name: mp.person, amount: parseFloat(mp.amount) }));
+    }
+
     let expenseData;
 
     if (splitMode === "equal") {
-      // Equal split - get participants who are selected
       const selectedParticipants = participants.filter(participant => customSplits[participant]?.selected);
       if (selectedParticipants.length === 0) {
         showCustomModal({
@@ -382,7 +452,9 @@ export default function TripExpenseSplitter() {
 
       expenseData = {
         id: Date.now(),
-        payer,
+        paymentMode,
+        payer: paymentMode === "single" ? payer : null,
+        payers: paymentMode === "multiple" ? validatedPayers : null,
         amount: expenseAmount,
         description: description.trim(),
         participants: selectedParticipants,
@@ -391,7 +463,6 @@ export default function TripExpenseSplitter() {
         date: new Date().toLocaleDateString()
       };
     } else {
-      // Custom split - validate amounts
       const participantsWithAmounts = participants.filter(participant =>
         customSplits[participant]?.amount && parseFloat(customSplits[participant].amount) > 0
       );
@@ -427,7 +498,9 @@ export default function TripExpenseSplitter() {
 
       expenseData = {
         id: Date.now(),
-        payer,
+        paymentMode,
+        payer: paymentMode === "single" ? payer : null,
+        payers: paymentMode === "multiple" ? validatedPayers : null,
         amount: expenseAmount,
         description: description.trim(),
         participants: participantsWithAmounts,
@@ -440,10 +513,10 @@ export default function TripExpenseSplitter() {
     setExpenses([...expenses, expenseData]);
     setAmount("");
     setDescription("");
-    // Reset custom splits
+    setMultiplePayers([{ person: "", amount: "" }]);
     const resetSplits = {};
     participants.forEach(participant => {
-      resetSplits[participant] = { selected: false, amount: "" };
+      resetSplits[participant] = { selected: true, amount: "" };
     });
     setCustomSplits(resetSplits);
     setResult(null);
@@ -458,6 +531,14 @@ export default function TripExpenseSplitter() {
     setCustomSplits(newSplits);
   }, [participants]);
 
+  // Auto-compute amount from payer totals in multiple mode
+  useEffect(() => {
+    if (paymentMode === "multiple") {
+      const total = multiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0);
+      setAmount(total > 0 ? total.toString() : "");
+    }
+  }, [multiplePayers, paymentMode]);
+
   const deleteExpense = (id) => {
     setExpenses(expenses.filter(expense => expense.id !== id));
     setResult(null); // Clear results when expenses change
@@ -465,12 +546,22 @@ export default function TripExpenseSplitter() {
 
   const startEditExpense = (expense) => {
     setEditingExpense(expense);
-    setEditPayer(expense.payer);
-    setEditAmount(expense.amount.toString());
     setEditDescription(expense.description);
     setEditSplitMode(expense.splitMode);
 
-    // Initialize edit custom splits
+    const mode = expense.paymentMode === "multiple" ? "multiple" : "single";
+    setEditPaymentMode(mode);
+
+    if (mode === "multiple" && expense.payers) {
+      setEditPayer("");
+      setEditMultiplePayers(expense.payers.map(p => ({ person: p.name, amount: p.amount.toString() })));
+      setEditAmount(expense.amount.toString());
+    } else {
+      setEditPayer(expense.payer || "");
+      setEditMultiplePayers([{ person: "", amount: "" }]);
+      setEditAmount(expense.amount.toString());
+    }
+
     const initialSplits = {};
     participants.forEach(participant => {
       initialSplits[participant] = {
@@ -488,20 +579,50 @@ export default function TripExpenseSplitter() {
     setEditDescription("");
     setEditSplitMode("equal");
     setEditCustomSplits({});
+    setEditPaymentMode("single");
+    setEditMultiplePayers([{ person: "", amount: "" }]);
   };
 
   const saveEditExpense = () => {
-    if (!editPayer || !editAmount || !editDescription.trim()) {
+    if (!editDescription.trim()) {
       showCustomModal({
         type: 'warning',
         title: 'Missing Information',
-        message: 'Please fill in all required fields (payer, amount, and description).',
+        message: 'Please fill in the description.',
         confirmText: 'OK'
       });
       return;
     }
 
-    const expenseAmount = parseFloat(editAmount);
+    if (editPaymentMode === "single" && !editPayer) {
+      showCustomModal({
+        type: 'warning',
+        title: 'Missing Information',
+        message: 'Please select who paid.',
+        confirmText: 'OK'
+      });
+      return;
+    }
+
+    // Multiple payers validation
+    let editValidatedPayers = null;
+    if (editPaymentMode === "multiple") {
+      const validPayers = editMultiplePayers.filter(mp => mp.person && parseFloat(mp.amount) > 0);
+      if (validPayers.length === 0) {
+        showCustomModal({ type: 'warning', title: 'No Payers Added', message: 'Please add at least one payer with a valid amount.', confirmText: 'OK' });
+        return;
+      }
+      const payerNames = validPayers.map(mp => mp.person);
+      if (new Set(payerNames).size !== payerNames.length) {
+        showCustomModal({ type: 'warning', title: 'Duplicate Payer', message: 'Each person can only appear once in the payers list.', confirmText: 'OK' });
+        return;
+      }
+      editValidatedPayers = validPayers.map(mp => ({ name: mp.person, amount: parseFloat(mp.amount) }));
+    }
+
+    const expenseAmount = editPaymentMode === "multiple"
+      ? editMultiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0)
+      : parseFloat(editAmount);
     if (isNaN(expenseAmount) || expenseAmount <= 0) {
       showCustomModal({
         type: 'error',
@@ -535,7 +656,9 @@ export default function TripExpenseSplitter() {
 
       expenseData = {
         ...editingExpense,
-        payer: editPayer,
+        paymentMode: editPaymentMode,
+        payer: editPaymentMode === "single" ? editPayer : null,
+        payers: editPaymentMode === "multiple" ? editValidatedPayers : null,
         amount: expenseAmount,
         description: editDescription.trim(),
         participants: selectedParticipants,
@@ -579,7 +702,9 @@ export default function TripExpenseSplitter() {
 
       expenseData = {
         ...editingExpense,
-        payer: editPayer,
+        paymentMode: editPaymentMode,
+        payer: editPaymentMode === "single" ? editPayer : null,
+        payers: editPaymentMode === "multiple" ? editValidatedPayers : null,
         amount: expenseAmount,
         description: editDescription.trim(),
         participants: participantsWithAmounts,
@@ -637,20 +762,37 @@ export default function TripExpenseSplitter() {
     const debtMap = {};
 
     // Accumulate all debts between person pairs
-    expenses.forEach(({ payer, splits }) => {
-      Object.entries(splits).forEach(([participant, amountOwed]) => {
-        if (participant !== payer && amountOwed > 0) {
-          const debtKey = `${participant}->${payer}`;
-          if (!debtMap[debtKey]) {
-            debtMap[debtKey] = {
-              from: participant,
-              to: payer,
-              amount: 0
-            };
+    expenses.forEach((expense) => {
+      const { splits } = expense;
+
+      if (expense.paymentMode === "multiple" && expense.payers) {
+        // Distribute each participant's share proportionally among payers
+        const totalPaid = expense.payers.reduce((sum, p) => sum + p.amount, 0);
+        expense.payers.forEach(({ name: payerName, amount: payerAmount }) => {
+          const proportion = totalPaid > 0 ? payerAmount / totalPaid : 0;
+          Object.entries(splits).forEach(([participant, share]) => {
+            const proportionalShare = share * proportion;
+            if (participant !== payerName && proportionalShare > 0.01) {
+              const debtKey = `${participant}->${payerName}`;
+              if (!debtMap[debtKey]) {
+                debtMap[debtKey] = { from: participant, to: payerName, amount: 0 };
+              }
+              debtMap[debtKey].amount += proportionalShare;
+            }
+          });
+        });
+      } else {
+        const payer = expense.payer;
+        Object.entries(splits).forEach(([participant, amountOwed]) => {
+          if (participant !== payer && amountOwed > 0) {
+            const debtKey = `${participant}->${payer}`;
+            if (!debtMap[debtKey]) {
+              debtMap[debtKey] = { from: participant, to: payer, amount: 0 };
+            }
+            debtMap[debtKey].amount += amountOwed;
           }
-          debtMap[debtKey].amount += amountOwed;
-        }
-      });
+        });
+      }
     });
 
     // Net out mutual debts between person pairs
@@ -729,20 +871,29 @@ export default function TripExpenseSplitter() {
     });
 
     // Calculate balances based on expenses
-    expenses.forEach(({ payer, splits }) => {
-      // Add total amount paid to payer's balance
-      const totalPaid = Object.values(splits).reduce((sum, amount) => sum + amount, 0);
+    expenses.forEach((expense) => {
+      const { splits } = expense;
 
-      // For each participant in the split
-      Object.entries(splits).forEach(([participant, amountOwed]) => {
-        if (participant !== payer) {
-          // Participant owes money (negative balance)
-          balances[participant] -= amountOwed;
-          // Payer should receive money (positive balance)
-          balances[payer] += amountOwed;
+      // Debit each participant their share
+      Object.entries(splits).forEach(([participant, share]) => {
+        if (balances[participant] !== undefined) {
+          balances[participant] -= share;
         }
-        // If participant === payer, they don't owe themselves
       });
+
+      // Credit payers for what they actually paid
+      if (expense.paymentMode === "multiple" && expense.payers) {
+        expense.payers.forEach(({ name, amount }) => {
+          if (balances[name] !== undefined) {
+            balances[name] += amount;
+          }
+        });
+      } else {
+        const payer = expense.payer;
+        if (payer && balances[payer] !== undefined) {
+          balances[payer] += expense.amount;
+        }
+      }
     });
 
     // Calculate minimum transactions needed (optimized settlements)
@@ -982,72 +1133,51 @@ export default function TripExpenseSplitter() {
 
   return (
     <div className="min-h-screen bg-gray-50" >
-      {/* Simple Header */}
-      < header className="bg-white border-b border-gray-200 px-4 py-3" >
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-2">
+        <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
+          {/* Left: app name + auto-saved */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-bold text-gray-800 text-sm sm:text-base whitespace-nowrap">Smart Expense Splitter</span>
             {lastSaved && (
-              <>
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Auto-saved</span>
-              </>
+              <span className="hidden sm:flex items-center gap-1 text-xs text-gray-400">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                Saved
+              </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            {/* PDF Language Settings */}
-            <div className="flex items-center gap-2">
-              <Settings size={16} className="text-gray-500" />
-              <select
-                className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={pdfLanguage}
-                onChange={(e) => setPdfLanguage(e.target.value)}
-                title="PDF Language"
-              >
-                <option value="en">PDF: English</option>
-                <option value="ur">PDF: اردو</option>
-              </select>
-            </div>
 
-            <Button
-              onClick={exportData}
-              variant="ghost"
-              size="sm"
-              className="text-black hover:text-gray-700 font-medium"
-              title="Export Data"
+          {/* Right: actions */}
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              className="text-xs border border-gray-300 rounded px-1.5 py-1 bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-400"
+              value={pdfLanguage}
+              onChange={(e) => setPdfLanguage(e.target.value)}
+              title="PDF Language"
             >
-              <Save size={16} className="mr-1" />
-              Export
+              <option value="en">PDF: EN</option>
+              <option value="ur">PDF: UR</option>
+            </select>
+
+            <Button onClick={exportData} variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800 px-2 py-1 h-8" title="Export Data">
+              <Save size={14} className="sm:mr-1" />
+              <span className="hidden sm:inline text-xs">Export</span>
             </Button>
+
             <div className="relative">
-              <input
-                type="file"
-                accept=".json"
-                onChange={importData}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                id="import-file"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-black hover:text-gray-700 font-medium"
-                title="Import Data"
-              >
-                <Upload size={16} className="mr-1" />
-                Import
+              <input type="file" accept=".json" onChange={importData} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" id="import-file" />
+              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800 px-2 py-1 h-8" title="Import Data">
+                <Upload size={14} className="sm:mr-1" />
+                <span className="hidden sm:inline text-xs">Import</span>
               </Button>
             </div>
-            <Button
-              onClick={clearAllData}
-              variant="ghost"
-              size="sm"
-              className="text-black hover:text-gray-700 font-medium"
-              title="Reset All Data (including saved data)"
-            >
+
+            <Button onClick={clearAllData} variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 h-8 text-xs whitespace-nowrap" title="Reset all data">
               Clear all
             </Button>
           </div>
         </div>
-      </header >
+      </header>
 
       {/* Main Content */}
       < main className="max-w-7xl mx-auto px-4 py-6" >
@@ -1104,7 +1234,7 @@ export default function TripExpenseSplitter() {
                           <div
                             className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-2 cursor-pointer"
                             style={{
-                              backgroundColor: index === 0 ? '#8B5CF6' : index === 1 ? '#3B82F6' : '#10B981'
+                              backgroundColor: getColor(index)
                             }}
                             onClick={() => startRenameParticipant(participant)}
                             title={`Click to rename ${participant}`}
@@ -1169,9 +1299,9 @@ export default function TripExpenseSplitter() {
                     </div>
                     <h3 className="text-sm font-bold text-white mb-1">Pending Settlements</h3>
                     <p className="text-lg font-bold text-white mb-1">
-                      {result ? (Object.values(result.balances).reduce((sum, balance) => sum + Math.abs(balance), 0) / 2).toFixed(2) : '0.00'}
+                      Rs {result ? (Object.values(result.balances).reduce((sum, balance) => sum + Math.abs(balance), 0) / 2).toFixed(2) : '0.00'}
                     </p>
-                    <p className="text-xs text-white/80">in outstanding payments</p>
+                    <p className="text-xs text-white/80">not yet settled</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1187,28 +1317,104 @@ export default function TripExpenseSplitter() {
               {/* Who Paid */}
               <div>
                 <Label className="text-sm font-semibold text-black mb-2 block">Who Paid?</Label>
-                <select
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-black"
-                  value={payer}
-                  onChange={e => setPayer(e.target.value)}
-                >
-                  {participants.map(participant => (
-                    <option key={participant} value={participant}>{participant}</option>
-                  ))}
-                </select>
+                <div className="flex bg-gray-100 p-1 rounded-lg mb-3">
+                  <div
+                    className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${paymentMode === "single" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                    onClick={() => setPaymentMode("single")}
+                  >
+                    Single Payer
+                  </div>
+                  <div
+                    className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${paymentMode === "multiple" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                    onClick={() => setPaymentMode("multiple")}
+                  >
+                    Multiple Payers
+                  </div>
+                </div>
+
+                {paymentMode === "single" ? (
+                  <select
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-black"
+                    value={payer}
+                    onChange={e => setPayer(e.target.value)}
+                  >
+                    {participants.map(participant => (
+                      <option key={participant} value={participant}>{participant}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="space-y-2">
+                    {multiplePayers.map((mp, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <select
+                          className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black text-sm"
+                          value={mp.person}
+                          onChange={e => updateMultiplePayerRow(idx, "person", e.target.value)}
+                        >
+                          <option value="">Select person...</option>
+                          {participants.map(participant => (
+                            <option key={participant} value={participant}>{participant}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="Amount"
+                          value={mp.amount}
+                          onChange={e => updateMultiplePayerRow(idx, "amount", e.target.value)}
+                          className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black text-sm"
+                        />
+                        {multiplePayers.length > 1 && (
+                          <button
+                            onClick={() => removeMultiplePayerRow(idx)}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            type="button"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-xs text-gray-500 px-1 pt-1">
+                      <span>
+                        Pool total: {formatCurrency(multiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0))}
+                      </span>
+                      {amount && (
+                        <span className={
+                          Math.abs(multiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0) - parseFloat(amount)) < 0.01
+                            ? "text-green-600 font-medium"
+                            : "text-orange-500"
+                        }>
+                          {Math.abs(multiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0) - parseFloat(amount)) < 0.01
+                            ? "Matches total"
+                            : `Rs ${(parseFloat(amount) - multiplePayers.reduce((sum, mp) => sum + (parseFloat(mp.amount) || 0), 0)).toFixed(2)} remaining`}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={addMultiplePayerRow}
+                      type="button"
+                      className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus size={14} />
+                      Add Payer
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Amount */}
-              <div>
-                <Label className="text-sm font-semibold text-black mb-2 block">Amount</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-black"
-                />
-              </div>
+              {paymentMode === "single" && (
+                <div>
+                  <Label className="text-sm font-semibold text-black mb-2 block">Amount (Rs)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 1500"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-black"
+                  />
+                </div>
+              )}
 
               {/* Description */}
               <div>
@@ -1249,7 +1455,21 @@ export default function TripExpenseSplitter() {
 
               {/* Participants Selection */}
               <div>
-                <Label className="text-sm font-semibold text-black mb-3 block">Participants</Label>
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-semibold text-black">Who shares this expense?</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSelected = participants.every(p => customSplits[p]?.selected);
+                      const next = {};
+                      participants.forEach(p => { next[p] = { ...customSplits[p], selected: !allSelected }; });
+                      setCustomSplits(next);
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {participants.every(p => customSplits[p]?.selected) ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-4 justify-center">
                   {participants.map((participant, index) => (
                     <div key={participant} className="flex flex-col items-center">
@@ -1270,7 +1490,7 @@ export default function TripExpenseSplitter() {
                           className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-2 transition-all ${customSplits[participant]?.selected ? 'ring-4 ring-blue-300' : ''
                             }`}
                           style={{
-                            backgroundColor: index === 0 ? '#8B5CF6' : index === 1 ? '#3B82F6' : '#10B981'
+                            backgroundColor: getColor(index)
                           }}
                         >
                           {participant.charAt(0).toUpperCase()}
@@ -1346,21 +1566,42 @@ export default function TripExpenseSplitter() {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm"
-                            style={{
-                              backgroundColor: participants.indexOf(expense.payer) === 0 ? '#8B5CF6' :
-                                participants.indexOf(expense.payer) === 1 ? '#3B82F6' : '#10B981'
-                            }}
-                          >
-                            {expense.payer.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold text-black">{expense.payer}</span>
-                              <span className="text-gray-500 text-sm">paid</span>
-                              <span className="font-bold text-green-600 text-lg">{formatCurrency(expense.amount)}</span>
+                          {expense.paymentMode === "multiple" && expense.payers ? (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-purple-500">
+                              $
                             </div>
+                          ) : (
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                              style={{
+                                backgroundColor: getColor(participants.indexOf(expense.payer))
+                              }}
+                            >
+                              {expense.payer?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            {expense.paymentMode === "multiple" && expense.payers ? (
+                              <div className="mb-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-bold text-green-600 text-lg">{formatCurrency(expense.amount)}</span>
+                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">pooled</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {expense.payers.map(p => (
+                                    <span key={p.name} className="text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded-full px-2 py-0.5">
+                                      {p.name}: {formatCurrency(p.amount)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-black">{expense.payer}</span>
+                                <span className="text-gray-500 text-sm">paid</span>
+                                <span className="font-bold text-green-600 text-lg">{formatCurrency(expense.amount)}</span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-700">{expense.description}</span>
                               <span className="text-gray-400">•</span>
@@ -1371,24 +1612,26 @@ export default function TripExpenseSplitter() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-2 shrink-0">
                           <Button
                             onClick={() => startEditExpense(expense)}
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            className="h-9 px-3 text-blue-500 hover:text-blue-700 hover:bg-blue-50 flex items-center gap-1"
                             title="Edit expense"
                           >
-                            <Edit2 size={14} />
+                            <Edit2 size={15} />
+                            <span className="text-xs font-medium">Edit</span>
                           </Button>
                           <Button
                             onClick={() => deleteExpense(expense.id)}
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            className="h-9 px-3 text-red-500 hover:text-red-700 hover:bg-red-50 flex items-center gap-1"
                             title="Delete expense"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={15} />
+                            <span className="text-xs font-medium">Delete</span>
                           </Button>
                         </div>
                       </div>
@@ -1404,8 +1647,7 @@ export default function TripExpenseSplitter() {
                               <div
                                 className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold"
                                 style={{
-                                  backgroundColor: participants.indexOf(participant) === 0 ? '#8B5CF6' :
-                                    participants.indexOf(participant) === 1 ? '#3B82F6' : '#10B981'
+                                  backgroundColor: getColor(participants.indexOf(participant))
                                 }}
                               >
                                 {participant.charAt(0).toUpperCase()}
@@ -1436,24 +1678,6 @@ export default function TripExpenseSplitter() {
           </Button>
         </div>
 
-        {/* Settlement Summary (below Calculate Settlement) */}
-        <Card className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200">
-          <CardContent className="py-4">
-            <h2 className="text-base font-semibold text-gray-900 mb-2">
-              {pdfLanguage === "ur" ? "تصفیہ کا خلاصہ" : "Settlement Summary"}
-            </h2>
-            <ul
-              className={`text-sm text-gray-700 list-disc ${pdfLanguage === "ur" ? "text-right pr-6" : "pl-6"
-                }`}
-              dir={pdfLanguage === "ur" ? "rtl" : "ltr"}
-            >
-              {getSettlementSummaryBullets(pdfLanguage).map((line, idx) => (
-                <li key={`${idx}-${line}`}>{line}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
         {/* Results */}
         {
           result && (
@@ -1470,16 +1694,36 @@ export default function TripExpenseSplitter() {
                     </div>
                   </div>
                   {(expenses.length > 0 || (result.transactions && result.transactions.length > 0)) && (
-                    <Button
-                      onClick={downloadPDF}
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-600 hover:text-gray-800"
-                      title="Download PDF Report"
-                    >
-                      <Download size={16} className="mr-2" />
-                      PDF
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          const lines = result.transactions.length === 0
+                            ? ['All settled! No one owes anything.']
+                            : result.transactions.map(t => `${t.from} pays ${t.to}: ${formatCurrency(t.amount)}`);
+                          const text = (tripName ? `${tripName}\n` : '') + lines.join('\n');
+                          navigator.clipboard.writeText(text).then(() => {
+                            showCustomModal({ type: 'success', title: 'Copied!', message: 'Settlement results copied to clipboard. Paste it anywhere — WhatsApp, SMS, notes.', confirmText: 'OK' });
+                          });
+                        }}
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-gray-800"
+                        title="Copy settlement to clipboard"
+                      >
+                        <Download size={16} className="mr-1 rotate-180" />
+                        Copy
+                      </Button>
+                      <Button
+                        onClick={downloadPDF}
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-gray-800"
+                        title="Download PDF Report"
+                      >
+                        <Download size={16} className="mr-1" />
+                        PDF
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardHeader>
@@ -1494,53 +1738,15 @@ export default function TripExpenseSplitter() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Original Debt Relationships Section */}
-                    {result.originalDebts && result.originalDebts.length > 0 && (
-                      <div>
-                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                          <span className="text-orange-600">Original Debt Relationships</span>
-                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-sm font-semibold">
-                            {result.originalDebts.length}
-                          </span>
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-3">These are the net amounts each person owes after offsetting mutual debts:</p>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {result.originalDebts.map((debt, index) => (
-                            <div
-                              key={`${debt.from}-${debt.to}-${debt.amount}-${index}`}
-                              className="p-3 bg-orange-50 rounded-lg border border-orange-200"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                                    {debt.from.charAt(0).toUpperCase()}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-gray-800">{debt.from}</span>
-                                    <span className="text-gray-500">→</span>
-                                    <span className="font-semibold text-gray-800">{debt.to}</span>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-bold text-orange-600 text-lg">{formatCurrency(debt.amount)}</p>
-                                  <p className="text-xs text-gray-500">Net Amount</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Optimized Settlements Section */}
+                    {/* Settlement Plan */}
                     <div>
                       <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                        <span className="text-blue-600">Optimized Settlement Plan</span>
+                        <span className="text-blue-600">Who pays whom</span>
                         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-semibold">
-                          {result.transactions.length}
+                          {result.transactions.length} payment{result.transactions.length !== 1 ? 's' : ''}
                         </span>
                       </h3>
-                      <p className="text-sm text-gray-600 mb-3">These are the minimum transactions needed to settle all debts:</p>
+                      <p className="text-sm text-gray-500 mb-3">Minimum transactions needed to settle everything:</p>
                       <div className="space-y-3">
                         {result.transactions.map((transaction) => (
                           <div
@@ -1631,7 +1837,8 @@ export default function TripExpenseSplitter() {
         {/* Edit Expense Form */}
         {
           editingExpense && (
-            <Card className="fixed inset-4 z-50 overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200">
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) cancelEditExpense(); }}>
+            <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-200">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -1648,8 +1855,152 @@ export default function TripExpenseSplitter() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Edit form content would go here - simplified for now */}
+              <CardContent className="space-y-4 pb-6">
+                {/* Who Paid */}
+                <div>
+                  <Label className="text-sm font-semibold text-black mb-2 block">Who Paid?</Label>
+                  <div className="flex bg-gray-100 p-1 rounded-lg mb-3">
+                    <div
+                      className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${editPaymentMode === "single" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                      onClick={() => setEditPaymentMode("single")}
+                    >
+                      Single Payer
+                    </div>
+                    <div
+                      className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${editPaymentMode === "multiple" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                      onClick={() => setEditPaymentMode("multiple")}
+                    >
+                      Multiple Payers
+                    </div>
+                  </div>
+                  {editPaymentMode === "single" ? (
+                    <select
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black"
+                      value={editPayer}
+                      onChange={e => setEditPayer(e.target.value)}
+                    >
+                      <option value="">Select payer...</option>
+                      {participants.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <div className="space-y-2">
+                      {editMultiplePayers.map((mp, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <select
+                            className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black text-sm"
+                            value={mp.person}
+                            onChange={e => setEditMultiplePayers(prev => prev.map((p, i) => i === idx ? { ...p, person: e.target.value } : p))}
+                          >
+                            <option value="">Select person...</option>
+                            {participants.map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Amount"
+                            value={mp.amount}
+                            onChange={e => setEditMultiplePayers(prev => prev.map((p, i) => i === idx ? { ...p, amount: e.target.value } : p))}
+                            className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black text-sm"
+                          />
+                          {editMultiplePayers.length > 1 && (
+                            <button onClick={() => setEditMultiplePayers(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" type="button">
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <div className="text-xs text-gray-500 px-1">
+                        Pool total: {formatCurrency(editMultiplePayers.reduce((s, mp) => s + (parseFloat(mp.amount) || 0), 0))}
+                      </div>
+                      <button
+                        onClick={() => setEditMultiplePayers(prev => [...prev, { person: "", amount: "" }])}
+                        type="button"
+                        className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Plus size={14} /> Add Payer
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount (single payer only) */}
+                {editPaymentMode === "single" && (
+                  <div>
+                    <Label className="text-sm font-semibold text-black mb-2 block">Amount</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={editAmount}
+                      onChange={e => setEditAmount(e.target.value)}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black"
+                    />
+                  </div>
+                )}
+
+                {/* Description */}
+                <div>
+                  <Label className="text-sm font-semibold text-black mb-2 block">Description</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Dinner, Gas, Hotel"
+                    value={editDescription}
+                    onChange={e => setEditDescription(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 text-black"
+                  />
+                </div>
+
+                {/* Split Mode */}
+                <div>
+                  <Label className="text-sm font-semibold text-black mb-3 block">Split Mode</Label>
+                  <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <div
+                      className={`flex-1 px-4 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${editSplitMode === "equal" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                      onClick={() => setEditSplitMode("equal")}
+                    >Equal</div>
+                    <div
+                      className={`flex-1 px-4 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${editSplitMode === "custom" ? "bg-white text-blue-600 shadow-sm" : "text-black hover:text-gray-700"}`}
+                      onClick={() => setEditSplitMode("custom")}
+                    >Custom</div>
+                  </div>
+                </div>
+
+                {/* Participants */}
+                <div>
+                  <Label className="text-sm font-semibold text-black mb-3 block">Participants</Label>
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    {participants.map((participant, index) => (
+                      <div key={participant} className="flex flex-col items-center">
+                        <label className="flex flex-col items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editCustomSplits[participant]?.selected || false}
+                            onChange={() => setEditCustomSplits(prev => ({
+                              ...prev,
+                              [participant]: { ...prev[participant], selected: !prev[participant]?.selected }
+                            }))}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold mb-2 transition-all ${editCustomSplits[participant]?.selected ? 'ring-4 ring-blue-300' : 'opacity-50'}`}
+                            style={{ backgroundColor: getColor(index) }}
+                          >
+                            {participant.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-black text-sm text-center">{participant}</span>
+                        </label>
+                        {editSplitMode === "custom" && editCustomSplits[participant]?.selected && (
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={editCustomSplits[participant]?.amount || ""}
+                            onChange={e => setEditCustomSplits(prev => ({ ...prev, [participant]: { ...prev[participant], amount: e.target.value } }))}
+                            className="mt-2 w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-black"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-2">
                   <Button
                     onClick={saveEditExpense}
@@ -1669,6 +2020,7 @@ export default function TripExpenseSplitter() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           )
         }
 
