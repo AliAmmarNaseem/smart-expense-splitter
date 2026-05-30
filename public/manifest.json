@@ -1,0 +1,18 @@
+{
+  "name": "Smart Expense Splitter",
+  "short_name": "Splitter",
+  "description": "Split expenses fairly with flexible splitting options",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
