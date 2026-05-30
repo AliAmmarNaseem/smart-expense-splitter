@@ -108,6 +108,7 @@ export default function TripExpenseSplitter() {
   const [shareUrl, setShareUrl] = useState('');
   const [shareCopied, setShareCopied] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [pdfCompact, setPdfCompact] = useState(false);
   const [sharedView, setSharedView] = useState(null);
 
   // ── Modal ──
@@ -708,7 +709,13 @@ export default function TripExpenseSplitter() {
 
   const downloadPDF = () => {
     try {
-      generatePDF({ tripName, participants, expenses, totalExpense, result, pdfLanguage, urduNameMap, displayNameForLanguage, summaryBullets: getSettlementSummaryBullets(pdfLanguage) });
+      generatePDF({
+        tripName, participants, expenses, totalExpense, result,
+        pdfLanguage, urduNameMap, displayNameForLanguage,
+        summaryBullets: getSettlementSummaryBullets(pdfLanguage),
+        currency,
+        compact: pdfCompact,
+      });
     } catch (err) {
       showCustomModal({ type: 'error', title: 'PDF Failed', message: err.message, confirmText: 'OK' });
     }
@@ -1620,7 +1627,9 @@ export default function TripExpenseSplitter() {
               <h3 className="text-base font-bold text-gray-900 dark:text-white">Download PDF</h3>
               <button onClick={() => setShowPdfDialog(false)} className="p-1 text-gray-500 dark:text-gray-400"><X size={18} /></button>
             </div>
-            <div className="mb-5">
+
+            {/* Language */}
+            <div className="mb-4">
               <Label className="text-sm font-semibold text-black dark:text-white mb-2 block">Language</Label>
               <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                 {[['en', 'English'], ['ur', 'اردو']].map(([val, label]) => (
@@ -1631,6 +1640,25 @@ export default function TripExpenseSplitter() {
                 ))}
               </div>
             </div>
+
+            {/* Report Style */}
+            <div className="mb-5">
+              <Label className="text-sm font-semibold text-black dark:text-white mb-2 block">Report Style</Label>
+              <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                <div
+                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${!pdfCompact ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-600 dark:text-gray-400'}`}
+                  onClick={() => setPdfCompact(false)}
+                >Full Report</div>
+                <div
+                  className={`flex-1 px-3 py-2 rounded-md font-medium text-sm transition-all cursor-pointer text-center ${pdfCompact ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' : 'text-gray-600 dark:text-gray-400'}`}
+                  onClick={() => setPdfCompact(true)}
+                >Quick Receipt</div>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 px-1">
+                {pdfCompact ? 'Compact: summary + settlement + expenses (~2 pages)' : 'Full: charts, per-person breakdown, original debts'}
+              </p>
+            </div>
+
             <div className="flex gap-3">
               <Button onClick={() => { downloadPDF(); setShowPdfDialog(false); }} className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white">
                 <Download size={15} className="mr-2" />Download
